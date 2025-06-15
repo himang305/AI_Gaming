@@ -4,7 +4,7 @@ export const tank = {
   x: 100,
   y: 100,
   angle: 0,
-  speed: 2,
+  speed: 5,
   width: 30,
   height: 20,
   hit: false,
@@ -31,7 +31,7 @@ export const enemyTank = {
 
 export function updateTank(keys) {
 
-    if (tank.health <= 0) return; // player dead — stop input
+  if (tank.health <= 0) return; // player dead — stop input
 
   let prevX = tank.x;
   let prevY = tank.y;
@@ -226,7 +226,7 @@ function updateEnemyTank() {
     }
   
     updateEnemyBullets();
-  }
+}
   
   function fireEnemyBullet() {
     enemyBullets.push({
