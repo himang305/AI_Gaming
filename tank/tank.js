@@ -4,9 +4,9 @@ export const tank = {
   x: 100,
   y: 100,
   angle: 0,
-  speed: 2,
-  width: 30,
-  height: 20,
+  speed: 0.5,
+  width: 40,
+  height: 40,
   hit: false,
   health: 10,
   maxHealth: 10
@@ -19,15 +19,20 @@ export const enemyTank = {
   x: 600,
   y: 100,
   angle: 0,
-  speed: 2,
-  width: 30,
-  height: 20,
+  speed: 0.5,
+  width: 40,
+  height: 40,
   fireCooldown: 0,
   hit: false,
   health: 10,
   maxHealth: 10
 };
 
+const helicopterImg = new Image();
+helicopterImg.src = './assets/tank.png';
+
+const godzillaImg = new Image();
+godzillaImg.src = './assets/tank.png';
 
 export function updateTank(keys) {
 
@@ -92,34 +97,46 @@ function isColliding(a, b) {
 }
 
 export function drawTank(ctx) {
-    // Draw player
+    // === Player (Helicopter) ===
     ctx.save();
     ctx.translate(tank.x, tank.y);
     ctx.rotate(tank.angle);
-    ctx.fillStyle = tank.hit ? "red" : "lime";
-    ctx.fillRect(-15, -10, 30, 20);
-    ctx.fillStyle = "green";
-    ctx.fillRect(0, -3, 20, 6);
+  
+    if (helicopterImg.complete) {
+      ctx.drawImage(helicopterImg, -tank.width / 2, -tank.height / 2, tank.width, tank.height);
+    } else {
+      ctx.fillStyle = tank.hit ? "red" : "lime";
+      ctx.fillRect(-15, -10, 30, 20); // fallback
+      ctx.fillStyle = "green";
+      ctx.fillRect(0, -3, 20, 6);
+    }
+  
     ctx.restore();
   
-    // health bar
+    // Player health bar
     ctx.fillStyle = "red";
     ctx.fillRect(tank.x - 20, tank.y - 30, 40, 5);
     ctx.fillStyle = "lime";
     ctx.fillRect(tank.x - 20, tank.y - 30, 40 * (tank.health / tank.maxHealth), 5);
-
-
-    // Draw enemy
+  
+  
+    // === Enemy (Godzilla) ===
     ctx.save();
     ctx.translate(enemyTank.x, enemyTank.y);
     ctx.rotate(enemyTank.angle);
-    ctx.fillStyle = enemyTank.hit ? "red" : "orange";
-    ctx.fillRect(-15, -10, 30, 20);
-    ctx.fillStyle = "brown";
-    ctx.fillRect(0, -3, 20, 6);
+  
+    if (godzillaImg.complete) {
+      ctx.drawImage(godzillaImg, -enemyTank.width / 2, -enemyTank.height / 2, enemyTank.width, enemyTank.height);
+    } else {
+      ctx.fillStyle = enemyTank.hit ? "red" : "lime";
+      ctx.fillRect(-15, -10, 30, 20); // fallback
+      ctx.fillStyle = "brown";
+      ctx.fillRect(0, -3, 20, 6);
+    }
+  
     ctx.restore();
-
-    // health bar
+  
+    // Enemy health bar
     ctx.fillStyle = "red";
     ctx.fillRect(enemyTank.x - 20, enemyTank.y - 30, 40, 5);
     ctx.fillStyle = "orange";
@@ -128,6 +145,8 @@ export function drawTank(ctx) {
     drawBullets(ctx);
     drawEnemyBullets(ctx);
   }
+  
+  
 
 // 🟡 Bullet logic
 function updateBullets() {
@@ -185,10 +204,8 @@ export function fireBullet() {
 // Enemy Tank Logic
 
 
-let enemyTurnTimer = 0;
-let strayDirection = 1;
 let enemyStuckCounter = 0;
-const STUCK_THRESHOLD = 10;
+const STUCK_THRESHOLD = 20;
 const MIN_ATTACK_DISTANCE = 100;
 
 function updateEnemyTank() {
@@ -205,37 +222,52 @@ function updateEnemyTank() {
     
     if (canSeePlayer) {
 
-      // 🔥 Aggressive mode: aim directly
-      const desiredAngle = Math.atan2(tank.y - enemyTank.y, tank.x - enemyTank.x);
-      const angleDiff = normalizeAngle(desiredAngle - enemyTank.angle);
-      const maxTurn = 0.1;
-      enemyTank.angle += Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
-      
-      const moveX = Math.cos(enemyTank.angle) * enemyTank.speed;
-      const moveY = Math.sin(enemyTank.angle) * enemyTank.speed;
-    
-      const prevX = enemyTank.x;
-      const prevY = enemyTank.y;
-    
-      enemyTank.x += moveX;
-      enemyTank.y += moveY;
-    
-      const collided = mapData.blocks.some(block =>
-        isColliding(
-          {
-            x: enemyTank.x - enemyTank.width / 2,
-            y: enemyTank.y - enemyTank.height / 2,
-            w: enemyTank.width,
-            h: enemyTank.height,
-          },
-          block
-        )
-      );
-    
-      if (collided) {
-        enemyTank.x = prevX;
-        enemyTank.y = prevY;
-      }
+        const dx = tank.x - enemyTank.x;
+        const dy = tank.y - enemyTank.y;
+        const distanceToPlayer = Math.hypot(dx, dy);
+        const desiredAngle = Math.atan2(dy, dx);
+        
+        // Smooth angle rotation toward player
+        const angleDiff = normalizeAngle(desiredAngle - enemyTank.angle);
+        const maxTurn = 0.1;
+        enemyTank.angle += Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
+        
+        // === Move only if distance > attack threshold ===
+        if (distanceToPlayer > MIN_ATTACK_DISTANCE) {
+          const moveX = Math.cos(enemyTank.angle) * enemyTank.speed;
+          const moveY = Math.sin(enemyTank.angle) * enemyTank.speed;
+        
+          const prevX = enemyTank.x;
+          const prevY = enemyTank.y;
+        
+          enemyTank.x += moveX;
+          enemyTank.y += moveY;
+        
+          const collided = mapData.blocks.some(block =>
+            isColliding(
+              {
+                x: enemyTank.x - enemyTank.width / 2,
+                y: enemyTank.y - enemyTank.height / 2,
+                w: enemyTank.width,
+                h: enemyTank.height
+              },
+              block
+            )
+          );
+        
+          if (collided) {
+            enemyTank.x = prevX;
+            enemyTank.y = prevY;
+          }
+        } else {
+            enemyTank.fireCooldown++;
+            if (enemyTank.fireCooldown > 100) {
+              fireEnemyBullet();
+              enemyTank.fireCooldown = 0;
+            }
+          // At ideal distance — hold position and keep aiming
+          // Could strafe or dodge if you want
+        }
     
     } else {
       
@@ -298,12 +330,12 @@ function updateEnemyTank() {
     }
   
     // --- Fire ---
+   
     enemyTank.fireCooldown++;
     if (enemyTank.fireCooldown > 100) {
       fireEnemyBullet();
       enemyTank.fireCooldown = 0;
     }
-  
     updateEnemyBullets();
   }
   
