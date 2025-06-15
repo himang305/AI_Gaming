@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tank Game</title>
+  <style>
+    canvas { background: #111; display: block; margin: auto; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const tank = {
+      x: 400,
+      y: 300,
+      angle: 0,
+      speed: 2
+    };
+
+    const keys = {};
+
+    document.addEventListener("keydown", e => keys[e.key] = true);
+    document.addEventListener("keyup", e => keys[e.key] = false);
+
+    function update() {
+      if (keys["ArrowLeft"]) tank.angle -= 0.05;
+      if (keys["ArrowRight"]) tank.angle += 0.05;
+
+      if (keys["ArrowUp"]) {
+        tank.x += Math.cos(tank.angle) * tank.speed;
+        tank.y += Math.sin(tank.angle) * tank.speed;
+      }
+
+      if (keys["ArrowDown"]) {
+        tank.x -= Math.cos(tank.angle) * tank.speed;
+        tank.y -= Math.sin(tank.angle) * tank.speed;
+      }
+    }
+
+    function drawTank(x, y, angle) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.fillStyle = "lime";
+      ctx.fillRect(-15, -10, 30, 20); // body
+      ctx.fillStyle = "green";
+      ctx.fillRect(0, -3, 20, 6);     // cannon
+      ctx.restore();
+    }
+
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      update();
+      drawTank(tank.x, tank.y, tank.angle);
+      requestAnimationFrame(gameLoop);
+    }
+
+   
+
+    gameLoop();
+  </script>
+</body>
+</html>
