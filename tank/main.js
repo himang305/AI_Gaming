@@ -6,7 +6,7 @@ const ctx = canvas.getContext("2d");
 const keys = {};
 
 document.addEventListener("keydown", e => {
-    console.log("keydown", e.key);
+    // console.log("keydown", e.key);
   keys[e.key] = true;
 
   // Fire bullet on spacebar
