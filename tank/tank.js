@@ -4,7 +4,7 @@ export const tank = {
   x: 100,
   y: 100,
   angle: 0,
-  speed: 5,
+  speed: 2,
   width: 30,
   height: 20,
   hit: false,
@@ -19,7 +19,7 @@ export const enemyTank = {
   x: 600,
   y: 100,
   angle: 0,
-  speed: 1.5,
+  speed: 2,
   width: 30,
   height: 20,
   fireCooldown: 0,
@@ -184,41 +184,120 @@ export function fireBullet() {
 
 // Enemy Tank Logic
 
+
+let enemyTurnTimer = 0;
+let strayDirection = 1;
+let enemyStuckCounter = 0;
+const STUCK_THRESHOLD = 10;
+const MIN_ATTACK_DISTANCE = 100;
+
 function updateEnemyTank() {
-
     if (enemyTank.health <= 0) {
-        updateEnemyBullets();
-        return; 
+      updateEnemyBullets();
+      return;
     }
+  
 
-    // Aim at player
+    const enemyCenter = { x: enemyTank.x, y: enemyTank.y };
+    const playerCenter = { x: tank.x, y: tank.y };
+    
+    const canSeePlayer = hasClearLineOfSight(enemyCenter, playerCenter, mapData.blocks);
+    
+    if (canSeePlayer) {
+
+      // 🔥 Aggressive mode: aim directly
+      const desiredAngle = Math.atan2(tank.y - enemyTank.y, tank.x - enemyTank.x);
+      const angleDiff = normalizeAngle(desiredAngle - enemyTank.angle);
+      const maxTurn = 0.1;
+      enemyTank.angle += Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
+      
+      const moveX = Math.cos(enemyTank.angle) * enemyTank.speed;
+      const moveY = Math.sin(enemyTank.angle) * enemyTank.speed;
+    
+      const prevX = enemyTank.x;
+      const prevY = enemyTank.y;
+    
+      enemyTank.x += moveX;
+      enemyTank.y += moveY;
+    
+      const collided = mapData.blocks.some(block =>
+        isColliding(
+          {
+            x: enemyTank.x - enemyTank.width / 2,
+            y: enemyTank.y - enemyTank.height / 2,
+            w: enemyTank.width,
+            h: enemyTank.height,
+          },
+          block
+        )
+      );
+    
+      if (collided) {
+        enemyTank.x = prevX;
+        enemyTank.y = prevY;
+      }
+    
+    } else {
+      
+    // --- Aim at player ---
     const dx = tank.x - enemyTank.x;
     const dy = tank.y - enemyTank.y;
-    enemyTank.angle = Math.atan2(dy, dx);
+    const desiredAngle = Math.atan2(dy, dx);
   
-    // Move towards player
+    const angleDiff = normalizeAngle(desiredAngle - enemyTank.angle);
+    const maxTurn = 0.05;
+    enemyTank.angle += Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
+  
+    // --- Movement ---
     const moveX = Math.cos(enemyTank.angle) * enemyTank.speed;
     const moveY = Math.sin(enemyTank.angle) * enemyTank.speed;
+  
     const prevX = enemyTank.x;
     const prevY = enemyTank.y;
   
     enemyTank.x += moveX;
     enemyTank.y += moveY;
   
-    // Collision with walls
-    if (
-      mapData.blocks.some(block =>
-        isColliding(
-          { x: enemyTank.x - enemyTank.width / 2, y: enemyTank.y - enemyTank.height / 2, w: enemyTank.width, h: enemyTank.height },
-          block
-        )
+    // Wall collision check
+    const collided = mapData.blocks.some(block =>
+      isColliding(
+        {
+          x: enemyTank.x - enemyTank.width / 2,
+          y: enemyTank.y - enemyTank.height / 2,
+          w: enemyTank.width,
+          h: enemyTank.height
+        },
+        block
       )
-    ) {
+    );
+  
+    if (collided) {
       enemyTank.x = prevX;
       enemyTank.y = prevY;
+      enemyStuckCounter++;
+
+      if (enemyStuckCounter > STUCK_THRESHOLD) {
+        // Reverse and rotate to escape corner
+        enemyTank.x -= Math.cos(enemyTank.angle) * enemyTank.speed * 2;
+        enemyTank.y -= Math.sin(enemyTank.angle) * enemyTank.speed * 2;
+        enemyTank.angle += Math.PI / 2 * (Math.random() > 0.5 ? 1 : -1); // turn left or right
+        enemyStuckCounter = 0; // reset
+      } else {
+
+      // Find alternate angle
+      const altAngle = scanForClearPath(enemyTank, mapData.blocks);
+      if (altAngle !== null) {
+        enemyTank.angle = altAngle;
+      } else {
+        // If stuck, rotate in place slowly
+        enemyTank.angle += 0.2;
+      }
+    }
+    }
+
     }
   
-    // Shoot every 100 frames
+    // --- Fire ---
     enemyTank.fireCooldown++;
     if (enemyTank.fireCooldown > 100) {
       fireEnemyBullet();
@@ -226,7 +305,58 @@ function updateEnemyTank() {
     }
   
     updateEnemyBullets();
-}
+  }
+  
+  // Look for a direction that doesn't hit a wall
+  function scanForClearPath(tank, blocks) {
+    const scanRange = Math.PI / 2; // scan 90° left/right
+    const step = Math.PI / 18;     // ~10 degree steps
+  
+    for (let offset = step; offset < scanRange; offset += step) {
+      for (let dir of [-1, 1]) {
+        const angle = tank.angle + dir * offset;
+        const testX = tank.x + Math.cos(angle) * 20;
+        const testY = tank.y + Math.sin(angle) * 20;
+        const box = {
+          x: testX - tank.width / 2,
+          y: testY - tank.height / 2,
+          w: tank.width,
+          h: tank.height
+        };
+        const collides = blocks.some(block => isColliding(box, block));
+        if (!collides) {
+          return angle; // return first clear path
+        }
+      }
+    }
+  
+    return null; // no clear path found
+  }
+  
+  function hasClearLineOfSight(from, to, blocks) {
+    const steps = 20;
+    const dx = (to.x - from.x) / steps;
+    const dy = (to.y - from.y) / steps;
+  
+    for (let i = 1; i <= steps; i++) {
+      const x = from.x + dx * i;
+      const y = from.y + dy * i;
+      const testBox = { x: x - 2, y: y - 2, w: 4, h: 4 };
+      if (blocks.some(block => isColliding(testBox, block))) {
+        return false;
+      }
+    }
+  
+    return true;
+  }
+
+  function normalizeAngle(angle) {
+    while (angle > Math.PI) angle -= 2 * Math.PI;
+    while (angle < -Math.PI) angle += 2 * Math.PI;
+    return angle;
+  }
+  
+
   
   function fireEnemyBullet() {
     enemyBullets.push({
